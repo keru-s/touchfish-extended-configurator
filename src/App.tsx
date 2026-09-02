@@ -9,6 +9,7 @@ import { FN_HIDUTIL_COMMAND, MAC_PRESETS, type Assignment } from './hid/presets'
 import { FrameParser } from './protocol/frame'
 import { SerialTransport } from './protocol/serialTransport'
 import {
+  STANDARD_KEYBOARD_FUNCTION_TYPE,
   TOUCHFISH_CONTROLS,
   TOUCHFISH_LAYER,
   buildIdentityRequest,
@@ -49,6 +50,7 @@ const COMMON_KEYS = [
   ['Space', HID.Space],
   ['Backspace', HID.Backspace],
   ['Delete', HID.Delete],
+  ['Insert', HID.Insert],
   ['Home', HID.Home],
   ['End', HID.End],
   ['Page Up', HID.PageUp],
@@ -57,6 +59,20 @@ const COMMON_KEYS = [
   ['↓', HID.ArrowDown],
   ['↑', HID.ArrowUp],
   ['→', HID.ArrowRight],
+] as const
+
+const PUNCTUATION_KEYS = [
+  ['-', HID.Minus],
+  ['=', HID.Equal],
+  ['[', HID.BracketLeft],
+  [']', HID.BracketRight],
+  ['\\', HID.Backslash],
+  [';', HID.Semicolon],
+  ["'", HID.Quote],
+  ['`', HID.Grave],
+  [',', HID.Comma],
+  ['.', HID.Period],
+  ['/', HID.Slash],
 ] as const
 
 function makeKeyAssignment(label: string, usage: number): Assignment {
@@ -109,7 +125,12 @@ export default function App() {
   const serialSupported = SerialTransport.isSupported()
 
   const customOptions = useMemo(
-    () => [...LETTER_KEYS, ...NUMBER_KEYS.map(([label, usage]) => ({ label, usage })), ...FUNCTION_KEYS],
+    () => [
+      ...LETTER_KEYS,
+      ...NUMBER_KEYS.map(([label, usage]) => ({ label, usage })),
+      ...PUNCTUATION_KEYS.map(([label, usage]) => ({ label, usage })),
+      ...FUNCTION_KEYS,
+    ],
     [],
   )
 
@@ -131,7 +152,7 @@ export default function App() {
         await delay(35)
       }
       await delay(250)
-      setStatus('设备配置读取完成。未显示的控制可能使用了媒体 / 鼠标 / 宏等其他类型。')
+      setStatus('设备配置读取完成。标准键盘与组合键会直接显示；其他官方功能类型暂不反解。')
     } catch (error) {
       setStatus(`读取配置失败：${error instanceof Error ? error.message : String(error)}`)
     } finally {
@@ -160,7 +181,15 @@ export default function App() {
 
       const standardRead = parseStandardKeyResponse(frame)
       if (standardRead && standardRead.layer === TOUCHFISH_LAYER) {
-        const label = assignmentLabelFromReport(standardRead.report)
+        let label: string
+        if (standardRead.functionType === 0) {
+          label = '未设置'
+        } else if (standardRead.functionType === STANDARD_KEYBOARD_FUNCTION_TYPE) {
+          label = assignmentLabelFromReport(standardRead.report)
+        } else {
+          label = `其他官方功能（类型 ${standardRead.functionType}）`
+        }
+
         setDeviceAssignments((current) => ({ ...current, [standardRead.controlIndex]: label }))
         appendLog({
           direction: 'INFO',
@@ -253,14 +282,14 @@ export default function App() {
   }
 
   const assignmentFor = (index: number) =>
-    deviceAssignments[index] ?? (readingAssignments ? '读取中…' : '未读取到标准键盘配置')
+    deviceAssignments[index] ?? (readingAssignments ? '读取中…' : '未读取')
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div>
           <p className="eyebrow">ELEKSMAKER TF05 / EM-TouchFish II</p>
-          <h1>TouchFish Extended Configurator</h1>
+          <h1>TouchFish 扩展配置器</h1>
           <p className="subtitle">官方配置器的轻量按键扩展：F13–F24、Mac 快捷键、Fn / Globe。</p>
         </div>
         <div className="topbar-actions">
@@ -295,7 +324,7 @@ export default function App() {
           <div className="panel-heading">
             <div>
               <span className="section-label">STEP 1</span>
-              <h2>选择 TouchFish 控制</h2>
+              <h2>选择 TouchFish 控件</h2>
             </div>
             <span className="muted">当前：{controlLabel(selectedControl)}</span>
           </div>
@@ -315,32 +344,14 @@ export default function App() {
             </div>
 
             <div className="dial-column">
-              <div className="rotary-row">
-                <button
-                  className={`rotary-control ${selectedControl === 7 ? 'selected' : ''}`}
-                  onClick={() => setSelectedControl(7)}
-                  title="旋钮左转"
-                >
-                  ↺
-                  <small>{assignmentFor(7)}</small>
-                </button>
-                <button
-                  className={`dial ${selectedControl === 6 ? 'selected' : ''}`}
-                  onClick={() => setSelectedControl(6)}
-                  title="旋钮按下"
-                >
-                  <span />
-                  <small>{assignmentFor(6)}</small>
-                </button>
-                <button
-                  className={`rotary-control ${selectedControl === 8 ? 'selected' : ''}`}
-                  onClick={() => setSelectedControl(8)}
-                  title="旋钮右转"
-                >
-                  ↻
-                  <small>{assignmentFor(8)}</small>
-                </button>
-              </div>
+              <button
+                className={`dial ${selectedControl === 6 ? 'selected' : ''}`}
+                onClick={() => setSelectedControl(6)}
+                title="旋钮按下"
+              >
+                <span />
+                <small>按下 · {assignmentFor(6)}</small>
+              </button>
 
               <button
                 className={`physical-key compact ${selectedControl === 5 ? 'selected' : ''}`}
@@ -351,8 +362,32 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          <div className="rotary-actions">
+            <button
+              className={`rotary-action ${selectedControl === 7 ? 'selected' : ''}`}
+              onClick={() => setSelectedControl(7)}
+            >
+              <span className="rotary-icon">↺</span>
+              <span>
+                <strong>旋钮左转</strong>
+                <small>{assignmentFor(7)}</small>
+              </span>
+            </button>
+            <button
+              className={`rotary-action ${selectedControl === 8 ? 'selected' : ''}`}
+              onClick={() => setSelectedControl(8)}
+            >
+              <span className="rotary-icon">↻</span>
+              <span>
+                <strong>旋钮右转</strong>
+                <small>{assignmentFor(8)}</small>
+              </span>
+            </button>
+          </div>
+
           <p className="helper-text">
-            连接后会自动读取标准键盘 / 组合键配置。媒体、鼠标、宏等其他官方类型目前会显示为“未读取到标准键盘配置”。旋钮按下 / 左转 / 右转已加入本轮实机验证。
+            连接后会自动读取标准键盘 / 组合键配置。旋钮按下直接点击设备图中的旋钮；左右旋转在下方单独配置。
           </p>
         </section>
 
@@ -379,23 +414,30 @@ export default function App() {
                 ))}
               </div>
 
-              <h3>Common</h3>
+              <h3>常用按键</h3>
               <div className="key-picker">
                 {COMMON_KEYS.map(([label, usage]) => (
                   <button key={label} onClick={() => setPending(makeKeyAssignment(label, usage))}>{label}</button>
                 ))}
               </div>
 
-              <h3>Letters</h3>
+              <h3>字母</h3>
               <div className="key-picker letters">
                 {LETTER_KEYS.map(({ label, usage }) => (
                   <button key={label} onClick={() => setPending(makeKeyAssignment(label, usage))}>{label}</button>
                 ))}
               </div>
 
-              <h3>Numbers</h3>
+              <h3>数字</h3>
               <div className="key-picker">
                 {NUMBER_KEYS.map(([label, usage]) => (
+                  <button key={label} onClick={() => setPending(makeKeyAssignment(label, usage))}>{label}</button>
+                ))}
+              </div>
+
+              <h3>标点符号</h3>
+              <div className="key-picker punctuation-picker">
+                {PUNCTUATION_KEYS.map(([label, usage]) => (
                   <button key={label} onClick={() => setPending(makeKeyAssignment(label, usage))}>{label}</button>
                 ))}
               </div>
