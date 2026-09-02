@@ -119,6 +119,7 @@ export default function App() {
       }
       transport.onDisconnected = () => {
         setConnected(false)
+        setIdentity(null)
         setStatus('设备连接已断开')
       }
       await transport.connect()
@@ -126,7 +127,7 @@ export default function App() {
       parserRef.current.reset()
       setConnected(true)
       setIdentity(null)
-      setStatus('已连接，正在识别设备…')
+      setStatus('已连接，正在识别设备…写入功能暂时锁定。')
 
       const request = buildIdentityRequest()
       appendLog({ direction: 'TX', message: toHex(request) })
@@ -149,8 +150,12 @@ export default function App() {
 
   const writePending = async () => {
     if (!pending || !transportRef.current) return
-    if (identity && !identity.supported) {
-      setStatus('当前设备不是已验证的 EM-TouchFish II，已阻止写入。')
+    if (!identity?.supported) {
+      setStatus(
+        identity
+          ? '当前设备不是已验证的 EM-TouchFish II，已阻止写入。'
+          : '设备身份尚未确认，已阻止写入。请等待识别出 EM-TouchFish II。',
+      )
       return
     }
 
@@ -363,12 +368,12 @@ export default function App() {
 
           <button
             className="primary-button write-button"
-            disabled={!connected || !pending || Boolean(identity && !identity.supported)}
+            disabled={!connected || !pending || !identity?.supported}
             onClick={writePending}
           >
             写入 Key {selectedKey}
           </button>
-          <p className="helper-text">当前仅确认串口写入成功，不宣称设备已返回写入 ACK。</p>
+          <p className="helper-text">只有识别为 EM-TouchFish II 后才允许写入。当前仅确认串口写入成功，不宣称设备已返回写入 ACK。</p>
         </aside>
       </main>
 
