@@ -117,6 +117,53 @@ export const HID = {
   F24: 0x73,
 } as const
 
+const USAGE_LABELS: Record<number, string> = {
+  [HID.Enter]: 'Enter',
+  [HID.Escape]: 'Esc',
+  [HID.Backspace]: 'Backspace',
+  [HID.Tab]: 'Tab',
+  [HID.Space]: 'Space',
+  [HID.Minus]: '-',
+  [HID.Equal]: '=',
+  [HID.BracketLeft]: '[',
+  [HID.BracketRight]: ']',
+  [HID.Backslash]: '\\',
+  [HID.Semicolon]: ';',
+  [HID.Quote]: "'",
+  [HID.Grave]: '`',
+  [HID.Comma]: ',',
+  [HID.Period]: '.',
+  [HID.Slash]: '/',
+  [HID.CapsLock]: 'Caps Lock',
+  [HID.PrintScreen]: 'Print Screen',
+  [HID.ScrollLock]: 'Scroll Lock',
+  [HID.Pause]: 'Pause',
+  [HID.Insert]: 'Insert',
+  [HID.Home]: 'Home',
+  [HID.PageUp]: 'Page Up',
+  [HID.Delete]: 'Delete',
+  [HID.End]: 'End',
+  [HID.PageDown]: 'Page Down',
+  [HID.ArrowRight]: '→',
+  [HID.ArrowLeft]: '←',
+  [HID.ArrowDown]: '↓',
+  [HID.ArrowUp]: '↑',
+}
+
+for (let i = 0; i < 26; i += 1) USAGE_LABELS[HID.A + i] = String.fromCharCode(65 + i)
+for (let i = 0; i < 9; i += 1) USAGE_LABELS[HID.Digit1 + i] = String(i + 1)
+USAGE_LABELS[HID.Digit0] = '0'
+for (let i = 0; i < 12; i += 1) USAGE_LABELS[HID.F1 + i] = `F${i + 1}`
+for (let i = 0; i < 12; i += 1) USAGE_LABELS[HID.F13 + i] = `F${i + 13}`
+for (let i = 0; i < 9; i += 1) USAGE_LABELS[HID.Numpad1 + i] = `Numpad ${i + 1}`
+USAGE_LABELS[HID.Numpad0] = 'Numpad 0'
+USAGE_LABELS[HID.NumpadSlash] = 'Numpad /'
+USAGE_LABELS[HID.NumpadMultiply] = 'Numpad *'
+USAGE_LABELS[HID.NumpadMinus] = 'Numpad -'
+USAGE_LABELS[HID.NumpadPlus] = 'Numpad +'
+USAGE_LABELS[HID.NumpadEnter] = 'Numpad Enter'
+USAGE_LABELS[HID.NumpadDot] = 'Numpad .'
+
 export function modifierByte(modifiers: readonly Modifier[]): number {
   return modifiers.reduce((value, modifier) => value | MODIFIER_BIT[modifier], 0)
 }
@@ -135,4 +182,45 @@ export function encodeKeyboardReport(
     report[index + 2] = usage & 0xff
   })
   return report
+}
+
+export type DecodedKeyboardReport = {
+  modifierMask: number
+  modifiers: Modifier[]
+  keyUsages: number[]
+}
+
+export function decodeKeyboardReport(report: Uint8Array): DecodedKeyboardReport {
+  if (report.length !== 8) throw new Error('Keyboard report must be exactly 8 bytes')
+
+  const modifiers = (Object.entries(MODIFIER_BIT) as [Modifier, number][])
+    .filter(([, bit]) => (report[0] & bit) !== 0)
+    .map(([modifier]) => modifier)
+
+  return {
+    modifierMask: report[0],
+    modifiers,
+    keyUsages: [...report.slice(2)].filter((usage) => usage !== 0),
+  }
+}
+
+export function keyboardUsageLabel(usage: number): string {
+  return USAGE_LABELS[usage] ?? `HID 0x${usage.toString(16).padStart(2, '0').toUpperCase()}`
+}
+
+export function describeKeyboardReport(report: Uint8Array): string {
+  const decoded = decodeKeyboardReport(report)
+  if (decoded.modifierMask === 0 && decoded.keyUsages.length === 0) return '未设置'
+
+  const leftGlyphs: Record<Modifier, string> = {
+    control: '⌃',
+    shift: '⇧',
+    option: '⌥',
+    command: '⌘',
+  }
+  const prefix = decoded.modifiers.map((modifier) => leftGlyphs[modifier]).join('')
+  const rightModifierBits = decoded.modifierMask & 0xf0
+  const rightSuffix = rightModifierBits ? ` + modifier 0x${rightModifierBits.toString(16).toUpperCase()}` : ''
+  const keys = decoded.keyUsages.map(keyboardUsageLabel).join(' + ')
+  return `${prefix}${keys || 'Modifier'}${rightSuffix}`
 }
