@@ -1,12 +1,21 @@
 import { useMemo, useRef, useState } from 'react'
-import { HID, type Modifier } from './hid/keyboard'
+import {
+  HID,
+  describeKeyboardReport,
+  encodeKeyboardReport,
+  type Modifier,
+} from './hid/keyboard'
 import { FN_HIDUTIL_COMMAND, MAC_PRESETS, type Assignment } from './hid/presets'
 import { FrameParser } from './protocol/frame'
 import { SerialTransport } from './protocol/serialTransport'
 import {
+  TOUCHFISH_CONTROLS,
+  TOUCHFISH_LAYER,
   buildIdentityRequest,
   buildKeyAssignmentPacket,
+  buildStandardKeyQuery,
   parseIdentityResponse,
+  parseStandardKeyResponse,
   toHex,
   type DeviceIdentity,
 } from './protocol/touchfish'
@@ -17,8 +26,6 @@ type LogEntry = {
   direction: 'TX' | 'RX' | 'INFO'
   message: string
 }
-
-const PHYSICAL_KEYS = [1, 2, 3, 4, 5]
 
 const FUNCTION_KEYS = Array.from({ length: 24 }, (_, index) => ({
   label: `F${index + 1}`,
@@ -66,14 +73,33 @@ function formatModifiers(modifiers: readonly Modifier[]): string {
   return modifiers.map((modifier) => glyph[modifier]).join('')
 }
 
+function reportsEqual(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+function assignmentLabelFromReport(report: Uint8Array): string {
+  const preset = MAC_PRESETS.find((candidate) =>
+    reportsEqual(report, encodeKeyboardReport(candidate.keys, candidate.modifiers)),
+  )
+  if (preset) return preset.name
+  return describeKeyboardReport(report)
+}
+
+function controlLabel(index: number): string {
+  return TOUCHFISH_CONTROLS.find((control) => control.index === index)?.label ?? `Control ${index}`
+}
+
+const delay = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+
 export default function App() {
   const transportRef = useRef<SerialTransport | null>(null)
   const parserRef = useRef(new FrameParser())
   const [connected, setConnected] = useState(false)
   const [identity, setIdentity] = useState<DeviceIdentity | null>(null)
-  const [selectedKey, setSelectedKey] = useState(1)
+  const [selectedControl, setSelectedControl] = useState(1)
   const [pending, setPending] = useState<Assignment | null>(null)
-  const [sessionAssignments, setSessionAssignments] = useState<Record<number, string>>({})
+  const [deviceAssignments, setDeviceAssignments] = useState<Record<number, string>>({})
+  const [readingAssignments, setReadingAssignments] = useState(false)
   const [tab, setTab] = useState<Tab>('keyboard')
   const [status, setStatus] = useState('尚未连接设备')
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -88,7 +114,29 @@ export default function App() {
   )
 
   const appendLog = (entry: LogEntry) => {
-    setLogs((current) => [...current.slice(-79), entry])
+    setLogs((current) => [...current.slice(-119), entry])
+  }
+
+  const refreshAssignments = async (transport = transportRef.current) => {
+    if (!transport) return
+    setReadingAssignments(true)
+    setDeviceAssignments({})
+    setStatus('正在读取设备现有的标准键盘配置…')
+
+    try {
+      for (const control of TOUCHFISH_CONTROLS) {
+        const query = buildStandardKeyQuery(TOUCHFISH_LAYER, control.index)
+        appendLog({ direction: 'TX', message: `${toHex(query)}  // read ${control.label}` })
+        await transport.write(query)
+        await delay(35)
+      }
+      await delay(250)
+      setStatus('设备配置读取完成。未显示的控制可能使用了媒体 / 鼠标 / 宏等其他类型。')
+    } catch (error) {
+      setStatus(`读取配置失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setReadingAssignments(false)
+    }
   }
 
   const handleIncoming = (chunk: Uint8Array) => {
@@ -100,11 +148,24 @@ export default function App() {
         message: `parser: discarded=${result.discardedBytes}, invalid=${result.invalidFrames}`,
       })
     }
+
     for (const frame of result.frames) {
       const device = parseIdentityResponse(frame)
       if (device) {
         setIdentity(device)
-        setStatus(device.supported ? `已识别：${device.modelName}` : `检测到未验证设备：${device.modelName}`)
+        setStatus(device.supported ? `已识别：${device.modelName}，正在读取现有配置…` : `检测到未验证设备：${device.modelName}`)
+        if (device.supported) void refreshAssignments(transportRef.current)
+        continue
+      }
+
+      const standardRead = parseStandardKeyResponse(frame)
+      if (standardRead && standardRead.layer === TOUCHFISH_LAYER) {
+        const label = assignmentLabelFromReport(standardRead.report)
+        setDeviceAssignments((current) => ({ ...current, [standardRead.controlIndex]: label }))
+        appendLog({
+          direction: 'INFO',
+          message: `read ${controlLabel(standardRead.controlIndex)} => ${label}`,
+        })
       }
     }
   }
@@ -120,6 +181,7 @@ export default function App() {
       transport.onDisconnected = () => {
         setConnected(false)
         setIdentity(null)
+        setDeviceAssignments({})
         setStatus('设备连接已断开')
       }
       await transport.connect()
@@ -127,6 +189,7 @@ export default function App() {
       parserRef.current.reset()
       setConnected(true)
       setIdentity(null)
+      setDeviceAssignments({})
       setStatus('已连接，正在识别设备…写入功能暂时锁定。')
 
       const request = buildIdentityRequest()
@@ -144,6 +207,7 @@ export default function App() {
       transportRef.current = null
       setConnected(false)
       setIdentity(null)
+      setDeviceAssignments({})
       setStatus('尚未连接设备')
     }
   }
@@ -160,11 +224,11 @@ export default function App() {
     }
 
     try {
-      const packet = buildKeyAssignmentPacket(selectedKey, pending.keys, pending.modifiers)
-      appendLog({ direction: 'TX', message: toHex(packet) })
+      const packet = buildKeyAssignmentPacket(selectedControl, pending.keys, pending.modifiers)
+      appendLog({ direction: 'TX', message: `${toHex(packet)}  // write ${controlLabel(selectedControl)}` })
       await transportRef.current.write(packet)
-      setSessionAssignments((current) => ({ ...current, [selectedKey]: pending.name }))
-      setStatus(`Key ${selectedKey} 的写入指令已发送：${pending.name}`)
+      setDeviceAssignments((current) => ({ ...current, [selectedControl]: pending.name }))
+      setStatus(`${controlLabel(selectedControl)} 的写入指令已发送：${pending.name}`)
     } catch (error) {
       setStatus(`写入失败：${error instanceof Error ? error.message : String(error)}`)
     }
@@ -188,6 +252,9 @@ export default function App() {
     })
   }
 
+  const assignmentFor = (index: number) =>
+    deviceAssignments[index] ?? (readingAssignments ? '读取中…' : '未读取到标准键盘配置')
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -200,6 +267,11 @@ export default function App() {
           <a className="secondary-button" href="https://key.eleksmaker.com/" target="_blank" rel="noreferrer">
             官方配置器 ↗
           </a>
+          {connected && identity?.supported && (
+            <button className="secondary-button" onClick={() => void refreshAssignments()} disabled={readingAssignments}>
+              {readingAssignments ? '读取中…' : '刷新配置'}
+            </button>
+          )}
           {connected ? (
             <button className="secondary-button" onClick={disconnect}>断开设备</button>
           ) : (
@@ -223,36 +295,65 @@ export default function App() {
           <div className="panel-heading">
             <div>
               <span className="section-label">STEP 1</span>
-              <h2>选择 TouchFish 按键</h2>
+              <h2>选择 TouchFish 控制</h2>
             </div>
-            <span className="muted">当前 Key {selectedKey}</span>
+            <span className="muted">当前：{controlLabel(selectedControl)}</span>
           </div>
 
           <div className="touchfish-layout">
             <div className="key-grid">
-              {PHYSICAL_KEYS.slice(0, 4).map((key) => (
+              {TOUCHFISH_CONTROLS.filter((control) => control.kind === 'key' && control.index <= 4).map((control) => (
                 <button
-                  key={key}
-                  className={`physical-key ${selectedKey === key ? 'selected' : ''}`}
-                  onClick={() => setSelectedKey(key)}
+                  key={control.id}
+                  className={`physical-key ${selectedControl === control.index ? 'selected' : ''}`}
+                  onClick={() => setSelectedControl(control.index)}
                 >
-                  <span>Key {key}</span>
-                  <small>{sessionAssignments[key] ?? '未读取'}</small>
+                  <span>{control.label}</span>
+                  <small>{assignmentFor(control.index)}</small>
                 </button>
               ))}
             </div>
+
             <div className="dial-column">
-              <div className="dial" aria-label="Dial visual placeholder"><span /></div>
+              <div className="rotary-row">
+                <button
+                  className={`rotary-control ${selectedControl === 7 ? 'selected' : ''}`}
+                  onClick={() => setSelectedControl(7)}
+                  title="旋钮左转"
+                >
+                  ↺
+                  <small>{assignmentFor(7)}</small>
+                </button>
+                <button
+                  className={`dial ${selectedControl === 6 ? 'selected' : ''}`}
+                  onClick={() => setSelectedControl(6)}
+                  title="旋钮按下"
+                >
+                  <span />
+                  <small>{assignmentFor(6)}</small>
+                </button>
+                <button
+                  className={`rotary-control ${selectedControl === 8 ? 'selected' : ''}`}
+                  onClick={() => setSelectedControl(8)}
+                  title="旋钮右转"
+                >
+                  ↻
+                  <small>{assignmentFor(8)}</small>
+                </button>
+              </div>
+
               <button
-                className={`physical-key compact ${selectedKey === 5 ? 'selected' : ''}`}
-                onClick={() => setSelectedKey(5)}
+                className={`physical-key compact ${selectedControl === 5 ? 'selected' : ''}`}
+                onClick={() => setSelectedControl(5)}
               >
                 <span>Key 5</span>
-                <small>{sessionAssignments[5] ?? '未读取'}</small>
+                <small>{assignmentFor(5)}</small>
               </button>
             </div>
           </div>
-          <p className="helper-text">“未读取”表示当前版本尚未反解设备已有配置；写入后会显示本次会话中的设置。</p>
+          <p className="helper-text">
+            连接后会自动读取标准键盘 / 组合键配置。媒体、鼠标、宏等其他官方类型目前会显示为“未读取到标准键盘配置”。旋钮按下 / 左转 / 右转已加入本轮实机验证。
+          </p>
         </section>
 
         <section className="mapping-card panel">
@@ -343,8 +444,9 @@ export default function App() {
           <span className="section-label">STEP 3</span>
           <h2>确认并写入</h2>
           <div className="assignment-summary">
-            <span>物理按键</span>
-            <strong>Key {selectedKey}</strong>
+            <span>物理控制</span>
+            <strong>{controlLabel(selectedControl)}</strong>
+            <small>当前：{assignmentFor(selectedControl)}</small>
           </div>
           <div className="assignment-summary">
             <span>准备写入</span>
@@ -371,7 +473,7 @@ export default function App() {
             disabled={!connected || !pending || !identity?.supported}
             onClick={writePending}
           >
-            写入 Key {selectedKey}
+            写入 {controlLabel(selectedControl)}
           </button>
           <p className="helper-text">只有识别为 EM-TouchFish II 后才允许写入。当前仅确认串口写入成功，不宣称设备已返回写入 ACK。</p>
         </aside>
