@@ -3,6 +3,7 @@ import { buildFrame, type TouchFishFrame } from './frame'
 
 export const TOUCHFISH_BAUD_RATE = 921600
 export const TOUCHFISH_LAYER = 1
+export const STANDARD_KEYBOARD_FUNCTION_TYPE = 1
 
 export const DEVICE_NAMES: Record<number, string> = {
   1: 'EM-TouchFish III',
@@ -24,12 +25,10 @@ export type TouchFishControl = {
 }
 
 /**
- * The five ordinary keys are verified as indices 1-5.
- * The official configurator exposes the rotary press / left / right actions
- * through the same physical-control selector used by keyboard writes. The
- * 6/7/8 ordering below is therefore intentionally isolated in one table so it
- * can be corrected without touching protocol code if real-device validation
- * shows a different order.
+ * Key indices 1-5 are verified. Query responses from a real EM-TouchFish II
+ * also confirm that indices 6-8 are valid configurable controls. Their physical
+ * rotary ordering still needs a write test, so the mapping remains isolated
+ * here and can be corrected without touching protocol code.
  */
 export const TOUCHFISH_CONTROLS: TouchFishControl[] = [
   { index: 1, id: 'key-1', label: 'Key 1', shortLabel: 'Key 1', kind: 'key' },
@@ -88,20 +87,23 @@ export type StandardKeyRead = {
   layer: number
   controlIndex: number
   report: Uint8Array
+  functionType: number
 }
 
 /**
- * Query command 0x02 is the verified standard-key query. The official client
- * sends [layer, physicalControlIndex]. Current firmware returns the same two
- * routing bytes followed by the keyboard report; some firmware revisions may
- * include an extra metadata byte before the report, so we deliberately take
- * the final 8 bytes while keeping the first two bytes as layer/control.
+ * Real-device capture (command 0x02) established the response payload as:
  *
- * Frames that do not contain a full keyboard report are ignored rather than
- * guessed at.
+ *   [layer, controlIndex, keyboardReport[8], functionType]
+ *
+ * Example Key2/Backspace:
+ *   01 02 | 00 00 2a 00 00 00 00 00 | 01
+ *
+ * The final byte is therefore metadata, not part of the keyboard report. The
+ * previous implementation incorrectly took the final eight bytes and decoded
+ * that metadata byte as HID usage 0x01.
  */
 export function parseStandardKeyResponse(frame: TouchFishFrame): StandardKeyRead | null {
-  if (frame.command !== 0x02 || frame.payload.length < 10) return null
+  if (frame.command !== 0x02 || frame.payload.length < 11) return null
 
   const layer = frame.payload[0]
   const controlIndex = frame.payload[1]
@@ -110,7 +112,8 @@ export function parseStandardKeyResponse(frame: TouchFishFrame): StandardKeyRead
   return {
     layer,
     controlIndex,
-    report: frame.payload.slice(frame.payload.length - 8),
+    report: frame.payload.slice(2, 10),
+    functionType: frame.payload[10],
   }
 }
 
