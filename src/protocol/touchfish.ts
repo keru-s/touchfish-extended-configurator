@@ -15,6 +15,33 @@ export const DEVICE_NAMES: Record<number, string> = {
   14: 'EM-GEEKHUB II',
 }
 
+export type TouchFishControl = {
+  index: number
+  id: string
+  label: string
+  shortLabel: string
+  kind: 'key' | 'dial-press' | 'dial-left' | 'dial-right'
+}
+
+/**
+ * The five ordinary keys are verified as indices 1-5.
+ * The official configurator exposes the rotary press / left / right actions
+ * through the same physical-control selector used by keyboard writes. The
+ * 6/7/8 ordering below is therefore intentionally isolated in one table so it
+ * can be corrected without touching protocol code if real-device validation
+ * shows a different order.
+ */
+export const TOUCHFISH_CONTROLS: TouchFishControl[] = [
+  { index: 1, id: 'key-1', label: 'Key 1', shortLabel: 'Key 1', kind: 'key' },
+  { index: 2, id: 'key-2', label: 'Key 2', shortLabel: 'Key 2', kind: 'key' },
+  { index: 3, id: 'key-3', label: 'Key 3', shortLabel: 'Key 3', kind: 'key' },
+  { index: 4, id: 'key-4', label: 'Key 4', shortLabel: 'Key 4', kind: 'key' },
+  { index: 5, id: 'key-5', label: 'Key 5', shortLabel: 'Key 5', kind: 'key' },
+  { index: 6, id: 'dial-press', label: '旋钮按下', shortLabel: '按下', kind: 'dial-press' },
+  { index: 7, id: 'dial-left', label: '旋钮左转', shortLabel: '左转', kind: 'dial-left' },
+  { index: 8, id: 'dial-right', label: '旋钮右转', shortLabel: '右转', kind: 'dial-right' },
+]
+
 export function buildIdentityRequest(): Uint8Array {
   return buildFrame(0x01)
 }
@@ -54,6 +81,36 @@ export function parseIdentityResponse(frame: TouchFishFrame): DeviceIdentity | n
     modelId,
     modelName: DEVICE_NAMES[modelId] ?? `Unknown (${modelId})`,
     supported: modelId === 12,
+  }
+}
+
+export type StandardKeyRead = {
+  layer: number
+  controlIndex: number
+  report: Uint8Array
+}
+
+/**
+ * Query command 0x02 is the verified standard-key query. The official client
+ * sends [layer, physicalControlIndex]. Current firmware returns the same two
+ * routing bytes followed by the keyboard report; some firmware revisions may
+ * include an extra metadata byte before the report, so we deliberately take
+ * the final 8 bytes while keeping the first two bytes as layer/control.
+ *
+ * Frames that do not contain a full keyboard report are ignored rather than
+ * guessed at.
+ */
+export function parseStandardKeyResponse(frame: TouchFishFrame): StandardKeyRead | null {
+  if (frame.command !== 0x02 || frame.payload.length < 10) return null
+
+  const layer = frame.payload[0]
+  const controlIndex = frame.payload[1]
+  if (layer < 1 || controlIndex < 1) return null
+
+  return {
+    layer,
+    controlIndex,
+    report: frame.payload.slice(frame.payload.length - 8),
   }
 }
 
