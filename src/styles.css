@@ -44,32 +44,42 @@ a { color: inherit; }
 
 .touchfish-layout { display: flex; gap: 14px; padding: 24px; border-radius: 14px; background: #202421; border: 7px solid #2a302b; }
 .key-grid { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.dial-column { width: 42%; min-width: 150px; display: grid; grid-template-rows: 1fr auto; gap: 10px; }
-.physical-key { min-height: 88px; border: 1px solid #363c37; background: linear-gradient(#303531, #282d29); color: #f5f7f5; border-radius: 11px; box-shadow: inset 0 -5px 0 rgba(0,0,0,.18); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
-.physical-key small { color: #8f9891; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dial-column { width: 34%; min-width: 128px; display: grid; grid-template-rows: 1fr auto; gap: 10px; }
+.physical-key { min-height: 88px; min-width: 0; padding: 10px 8px; border: 1px solid #363c37; background: linear-gradient(#303531, #282d29); color: #f5f7f5; border-radius: 11px; box-shadow: inset 0 -5px 0 rgba(0,0,0,.18); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.physical-key > span { max-width: 100%; overflow-wrap: anywhere; text-align: center; }
+.physical-key small { color: #8f9891; width: 100%; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; line-height: 1.25; font-size: 11px; }
 .physical-key.selected { background: linear-gradient(#55ff25, #30dd0a); color: #071005; border-color: #7cff5b; box-shadow: 0 0 26px rgba(87, 255, 42, .28), inset 0 -5px 0 rgba(0,0,0,.1); }
 .physical-key.selected small { color: #15360d; }
 .physical-key.compact { min-height: 58px; }
-.rotary-row { display: grid; grid-template-columns: 34px minmax(76px, 1fr) 34px; gap: 6px; min-height: 100px; }
-.rotary-control, .dial { border: 1px solid #3d443e; border-radius: 10px; background: #252a26; color: #dce2dd; min-width: 0; }
-.rotary-control { padding: 7px 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; font-size: 20px; }
-.rotary-control small { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7f8981; font-size: 8px; }
-.dial { display: flex; flex-direction: column; place-items: center; align-items: center; justify-content: center; gap: 6px; padding: 8px 4px; }
-.dial span { width: 58px; aspect-ratio: 1; border-radius: 50%; display: block; background: radial-gradient(circle at 35% 30%, #4b524c, #272b28 70%); border: 7px solid #3a403b; }
-.dial small { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8f9891; font-size: 9px; }
-.rotary-control.selected, .dial.selected { color: #071005; border-color: #7cff5b; background: linear-gradient(#55ff25, #30dd0a); box-shadow: 0 0 22px rgba(87,255,42,.22); }
-.rotary-control.selected small, .dial.selected small { color: #15360d; }
+
+.dial { border: 1px solid #3d443e; border-radius: 12px; background: #252a26; color: #dce2dd; min-height: 106px; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 9px 7px; }
+.dial span { width: 62px; max-width: 78%; aspect-ratio: 1; border-radius: 50%; display: block; background: radial-gradient(circle at 35% 30%, #4b524c, #272b28 70%); border: 7px solid #3a403b; }
+.dial small { width: 100%; color: #8f9891; white-space: normal; overflow-wrap: anywhere; text-align: center; line-height: 1.2; font-size: 10px; }
+.dial.selected { color: #071005; border-color: #7cff5b; background: linear-gradient(#55ff25, #30dd0a); box-shadow: 0 0 22px rgba(87,255,42,.22); }
+.dial.selected small { color: #15360d; }
 .dial.selected span { border-color: #1f9f08; background: radial-gradient(circle at 35% 30%, #88ff69, #31d911 75%); }
+
+.rotary-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.rotary-action { min-width: 0; min-height: 66px; padding: 10px 14px; border: 1px solid #343a35; border-radius: 11px; background: #202421; color: #e9edea; display: flex; align-items: center; gap: 12px; text-align: left; }
+.rotary-action:hover { border-color: #5bdc3a; }
+.rotary-action > span:last-child { min-width: 0; display: grid; gap: 4px; }
+.rotary-action strong { font-size: 13px; }
+.rotary-action small { color: #828b84; font-size: 11px; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
+.rotary-action.selected { background: #1f391b; color: #86ff62; border-color: #477b3d; box-shadow: 0 0 18px rgba(87,255,42,.12); }
+.rotary-action.selected small { color: #a8d99b; }
+.rotary-icon { flex: 0 0 auto; font-size: 24px; line-height: 1; }
 
 .tabs { display: flex; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid #272c28; }
 .tabs button, .modifier-row button { border: 1px solid #313732; background: #202421; color: #aeb6b0; padding: 9px 12px; border-radius: 9px; }
 .tabs button.active, .modifier-row button.active { background: #1f391b; color: #86ff62; border-color: #477b3d; }
 .picker-scroll { max-height: 470px; overflow: auto; padding-right: 4px; }
-.key-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 7px; }
-.key-picker button { min-height: 42px; border: 1px solid #353b36; background: linear-gradient(#2c312d, #242824); color: #e6eae7; border-radius: 8px; }
+.key-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 7px; }
+.key-picker button { min-height: 42px; min-width: 0; padding: 8px 6px; border: 1px solid #353b36; background: linear-gradient(#2c312d, #242824); color: #e6eae7; border-radius: 8px; overflow-wrap: anywhere; line-height: 1.15; font-size: 13px; }
 .key-picker button:hover { border-color: #64e943; color: #8aff68; }
 .function-picker { grid-template-columns: repeat(8, minmax(48px, 1fr)); }
+.function-picker button { font-size: 12px; }
 .letters { grid-template-columns: repeat(9, minmax(44px, 1fr)); }
+.punctuation-picker { grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); }
 
 .preset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; max-height: 495px; overflow: auto; }
 .preset-card { text-align: left; border: 1px solid #313732; background: #202421; border-radius: 10px; color: #eef2ef; padding: 13px; min-height: 75px; display: flex; flex-direction: column; gap: 6px; }
@@ -84,7 +94,7 @@ select { width: 100%; background: #202421; border: 1px solid #373d38; color: whi
 .write-card { display: flex; flex-direction: column; }
 .assignment-summary { display: grid; gap: 6px; padding: 14px 0; border-bottom: 1px solid #282e29; }
 .assignment-summary span, .assignment-summary small { color: #7f8880; font-size: 12px; }
-.assignment-summary strong { font-size: 18px; }
+.assignment-summary strong { font-size: 18px; overflow-wrap: anywhere; }
 .fn-card { margin-top: 14px; padding: 13px; border-radius: 10px; border: 1px solid #3b5935; background: #162015; }
 .fn-card p { color: #98a398; font-size: 12px; line-height: 1.5; }
 .fn-card code { display: block; color: #b6ff9f; background: #0c110c; padding: 10px; overflow-wrap: anywhere; border-radius: 7px; font-size: 11px; line-height: 1.5; }
@@ -110,7 +120,8 @@ footer a { color: #9da59f; }
   .workspace { grid-template-columns: 1fr; }
   .write-card { grid-column: auto; }
   .touchfish-layout { padding: 14px; }
-  .dial-column { min-width: 136px; }
+  .dial-column { min-width: 118px; }
+  .rotary-actions { grid-template-columns: 1fr; }
   .function-picker { grid-template-columns: repeat(4, 1fr); }
   .letters { grid-template-columns: repeat(5, 1fr); }
   .preset-grid { grid-template-columns: 1fr; }
