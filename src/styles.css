@@ -34,7 +34,7 @@ a { color: inherit; }
 .status-dot.connected { background: #57ff2a; box-shadow: 0 0 14px rgba(87, 255, 42, .8); }
 .device-pill { margin-left: 5px; padding: 3px 8px; border-radius: 999px; background: #202521; color: #aab2ac; }
 
-.workspace { display: grid; grid-template-columns: minmax(340px, .9fr) minmax(500px, 1.35fr) minmax(290px, .75fr); gap: 16px; align-items: stretch; }
+.workspace { display: grid; grid-template-columns: minmax(390px, .95fr) minmax(500px, 1.35fr) minmax(290px, .75fr); gap: 16px; align-items: stretch; }
 .panel { border: 1px solid #252b26; background: rgba(17, 20, 18, .92); border-radius: 16px; box-shadow: 0 18px 70px rgba(0,0,0,.2); }
 .device-card, .mapping-card, .write-card { padding: 20px; }
 .panel-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 18px; }
@@ -44,14 +44,22 @@ a { color: inherit; }
 
 .touchfish-layout { display: flex; gap: 14px; padding: 24px; border-radius: 14px; background: #202421; border: 7px solid #2a302b; }
 .key-grid { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.dial-column { width: 31%; display: grid; grid-template-rows: 1fr auto; gap: 10px; }
+.dial-column { width: 42%; min-width: 150px; display: grid; grid-template-rows: 1fr auto; gap: 10px; }
 .physical-key { min-height: 88px; border: 1px solid #363c37; background: linear-gradient(#303531, #282d29); color: #f5f7f5; border-radius: 11px; box-shadow: inset 0 -5px 0 rgba(0,0,0,.18); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
 .physical-key small { color: #8f9891; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .physical-key.selected { background: linear-gradient(#55ff25, #30dd0a); color: #071005; border-color: #7cff5b; box-shadow: 0 0 26px rgba(87, 255, 42, .28), inset 0 -5px 0 rgba(0,0,0,.1); }
 .physical-key.selected small { color: #15360d; }
 .physical-key.compact { min-height: 58px; }
-.dial { border: 1px solid #3d443e; border-radius: 12px; background: #252a26; display: grid; place-items: center; min-height: 100px; }
-.dial span { width: 66px; aspect-ratio: 1; border-radius: 50%; display: block; background: radial-gradient(circle at 35% 30%, #4b524c, #272b28 70%); border: 7px solid #3a403b; }
+.rotary-row { display: grid; grid-template-columns: 34px minmax(76px, 1fr) 34px; gap: 6px; min-height: 100px; }
+.rotary-control, .dial { border: 1px solid #3d443e; border-radius: 10px; background: #252a26; color: #dce2dd; min-width: 0; }
+.rotary-control { padding: 7px 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; font-size: 20px; }
+.rotary-control small { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7f8981; font-size: 8px; }
+.dial { display: flex; flex-direction: column; place-items: center; align-items: center; justify-content: center; gap: 6px; padding: 8px 4px; }
+.dial span { width: 58px; aspect-ratio: 1; border-radius: 50%; display: block; background: radial-gradient(circle at 35% 30%, #4b524c, #272b28 70%); border: 7px solid #3a403b; }
+.dial small { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8f9891; font-size: 9px; }
+.rotary-control.selected, .dial.selected { color: #071005; border-color: #7cff5b; background: linear-gradient(#55ff25, #30dd0a); box-shadow: 0 0 22px rgba(87,255,42,.22); }
+.rotary-control.selected small, .dial.selected small { color: #15360d; }
+.dial.selected span { border-color: #1f9f08; background: radial-gradient(circle at 35% 30%, #88ff69, #31d911 75%); }
 
 .tabs { display: flex; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid #272c28; }
 .tabs button, .modifier-row button { border: 1px solid #313732; background: #202421; color: #aeb6b0; padding: 9px 12px; border-radius: 9px; }
@@ -101,6 +109,8 @@ footer a { color: #9da59f; }
   .topbar-actions { justify-content: flex-start; }
   .workspace { grid-template-columns: 1fr; }
   .write-card { grid-column: auto; }
+  .touchfish-layout { padding: 14px; }
+  .dial-column { min-width: 136px; }
   .function-picker { grid-template-columns: repeat(4, 1fr); }
   .letters { grid-template-columns: repeat(5, 1fr); }
   .preset-grid { grid-template-columns: 1fr; }
