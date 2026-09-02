@@ -1,13 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { HID, encodeKeyboardReport } from '../hid/keyboard'
-import { FrameParser, buildFrame } from './frame'
-import { buildIdentityRequest, buildKeyAssignmentPacket } from './touchfish'
+import { HID, describeKeyboardReport, encodeKeyboardReport } from '../hid/keyboard'
+import { FrameParser, buildFrame, decodeFrame } from './frame'
+import {
+  buildIdentityRequest,
+  buildKeyAssignmentPacket,
+  buildStandardKeyQuery,
+  parseStandardKeyResponse,
+} from './touchfish'
 
 const bytes = (hex: string) => Uint8Array.from(hex.split(' ').map((part) => Number.parseInt(part, 16)))
 
 describe('known protocol packets', () => {
   it('builds the verified identity request', () => {
     expect(buildIdentityRequest()).toEqual(bytes('aa 01 04 ee 9d'))
+  })
+
+  it('builds the known standard-key query shape', () => {
+    expect(buildStandardKeyQuery(1, 5)).toEqual(bytes('aa 02 06 01 05 ee a6'))
   })
 
   it('builds the verified Key5 -> F14 packet', () => {
@@ -26,6 +35,15 @@ describe('known protocol packets', () => {
     expect([...encodeKeyboardReport([HID.Q], ['control', 'command'])]).toEqual([
       0x09, 0x00, HID.Q, 0, 0, 0, 0, 0,
     ])
+  })
+
+  it('decodes a keyboard query response into a readable shortcut', () => {
+    const raw = buildFrame(0x02, [1, 4, ...encodeKeyboardReport([HID.Q], ['control', 'command'])])
+    const frame = decodeFrame(raw)
+    expect(frame).not.toBeNull()
+    const read = parseStandardKeyResponse(frame!)
+    expect(read?.controlIndex).toBe(4)
+    expect(describeKeyboardReport(read!.report)).toBe('⌃⌘Q')
   })
 })
 
