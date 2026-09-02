@@ -10,6 +10,8 @@ The product focuses on keyboard mappings that are missing or awkward in the offi
 - macOS shortcuts
 - custom modifier shortcuts
 - Fn / Globe via an F20 proxy
+- reading existing standard-key assignments after reconnect / refresh
+- rotary press / left / right assignment
 
 For RGB, lighting, mouse, touch and other device-specific features, link users back to https://key.eleksmaker.com/.
 
@@ -18,10 +20,11 @@ For RGB, lighting, mouse, touch and other device-specific features, link users b
 Follow the official configurator's simple interaction model:
 
 1. Connect device.
-2. Click one physical TF05 key.
-3. Click a target keyboard key or action.
-4. Review the pending assignment.
-5. Click **写入 Key X**.
+2. Read current standard keyboard assignments.
+3. Click one physical TF05 control (Key 1-5, knob press, knob left or knob right).
+4. Click a target keyboard key or action.
+5. Review the current and pending assignment.
+6. Click the explicit write button for that control.
 
 Avoid drag-and-drop and avoid exposing HID/protocol terminology in the default UI.
 
@@ -29,11 +32,14 @@ The default UI should contain:
 
 - device connection / identity state
 - simplified TF05 physical layout
+- rotary press / left / right selectors
+- current standard-key assignment display
+- manual **刷新配置** action
 - Standard Keyboard tab
 - Mac tab
 - Custom Shortcut tab
 - pending assignment preview
-- explicit per-key write button
+- explicit per-control write button
 - official configurator link
 
 ## 3. Required V1 mappings
@@ -94,7 +100,7 @@ Use F20 (`Keyboard Usage 0x6F`) as the reserved proxy key.
 Device-side assignment:
 
 ```text
-TF05 physical key -> F20
+TF05 physical control -> F20
 ```
 
 macOS mapping:
@@ -103,7 +109,7 @@ macOS mapping:
 hidutil property --set '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x70000006F,"HIDKeyboardModifierMappingDst":0xFF00000003}]}'
 ```
 
-This approach is based on the same Apple Fn / Globe destination usage used by HD838A/remote-mic-app. The mapping mechanism was manually validated on the user's Mac with F14 -> Fn / Globe; V1 switches the proxy to F20 to reduce collisions.
+This approach is based on the same Apple Fn / Globe destination usage used by HD838A/remote-mic-app. The mapping mechanism was manually validated on the user's Mac with F14 -> Fn / Globe; V1 switches the proxy to F20 to reduce collisions. The current browser implementation has also been hardware-tested successfully for normal shortcuts and Fn / Globe writes.
 
 V1 may use the global mapping. Device-specific `hidutil --matching` is a later enhancement.
 
@@ -117,7 +123,6 @@ Do not implement in V1:
 - Fn firmware layers
 - RGB / lighting
 - touch configuration
-- rotary dial configuration
 - mouse protocol unless separately verified
 - arbitrary macros / scripts
 - native macOS helper
@@ -199,7 +204,11 @@ Example for layer 1 / physical key index 3:
 AA 02 06 01 03 EE A4
 ```
 
-Response decoding is not yet required for the first vertical slice.
+The current implementation sends this read-only query automatically after model 12 is detected and also exposes a manual refresh action. Standard keyboard responses are decoded only when a complete 8-byte keyboard report is present. Do not guess a mapping from short / unknown response shapes.
+
+The first two payload bytes are treated as layer and physical-control index. The implementation accepts optional metadata before the keyboard report by taking the final 8 bytes as the report.
+
+Current assignment decoding covers the standard-key / modifier combinations this project writes. Official media, mouse and macro query families remain out of scope until separately verified.
 
 ### Standard keyboard write
 
@@ -262,6 +271,28 @@ Modifiers:
 0xE6 Right Alt
 0xE7 Right GUI
 ```
+
+### Physical control indices
+
+Verified ordinary key indices:
+
+```text
+1 -> Key 1
+2 -> Key 2
+3 -> Key 3
+4 -> Key 4
+5 -> Key 5
+```
+
+The official configurator exposes rotary press, left and right actions through the same physical-control selection path used by keyboard writes. The current implementation isolates the following inferred ordering in `TOUCHFISH_CONTROLS` pending real-device confirmation:
+
+```text
+6 -> rotary press
+7 -> rotary left
+8 -> rotary right
+```
+
+These indices must be validated with harmless distinct F13/F14/F15 assignments before the PR leaves draft. If the ordering differs, change only the control table; do not probe unknown commands.
 
 ## 7. Parser requirements
 
@@ -328,19 +359,27 @@ src/
 
 ### Phase 2 — product UI
 
-- simplified physical TF05 key layout
+- simplified physical TF05 layout
 - complete keyboard picker
 - Mac presets
 - custom shortcut editor
 - Fn / Globe instructions
 - error / reconnect states
 
-### Phase 3 — polish
+### Phase 3 — assignment continuity and rotary
+
+- automatic / manual standard-key query
+- standard keyboard report decoding and preset recognition
+- current assignment display after reconnect / refresh
+- rotary press / left / right selectors
+- real-device validation of rotary control indices
+
+### Phase 4 — polish
 
 - richer debug log
-- optional query / current assignment decoding once response format is verified
 - responsive layout
 - GitHub Pages deployment
+- separately reverse additional official mapping families only if needed
 
 ## 11. Reference repositories
 
@@ -359,11 +398,13 @@ V1 is considered ready for initial public testing when:
 
 1. Chrome/Edge can connect to a real EM-TouchFish II through Web Serial.
 2. Identity response resolves model 12.
-3. A user can select a physical key and assign F13–F24.
-4. Mac preset packets use verified standard keyboard reports only.
-5. Fn / Globe writes F20 and shows the working `hidutil` command.
-6. Custom modifier + primary-key shortcuts encode correctly.
-7. Known packet unit tests pass.
-8. Parser tests cover split / combined / noisy / invalid streams.
-9. No firmware or unknown commands exist in the application.
-10. The official configurator is linked for out-of-scope features.
+3. A user can select Key 1-5 and assign F13–F24.
+4. Existing standard keyboard / shortcut assignments are restored after reconnect / refresh.
+5. Rotary press / left / right selectors are available and their indices are real-device verified.
+6. Mac preset packets use verified standard keyboard reports only.
+7. Fn / Globe writes F20 and shows the working `hidutil` command.
+8. Custom modifier + primary-key shortcuts encode correctly.
+9. Known packet and assignment-decode unit tests pass.
+10. Parser tests cover split / combined / noisy / invalid streams.
+11. No firmware or unknown commands exist in the application.
+12. The official configurator is linked for out-of-scope features.
